@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	//"io/fs"
-        "io/ioutil"
+	//"flag"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
-        "time"
+	"time"
 )
 
 func path_to_folder(subpath string) (string, error) {
@@ -23,9 +25,12 @@ func path_to_folder(subpath string) (string, error) {
    os.MkdirAll(path_to_folder, 0700) 
    return path_to_folder, nil
 }
+func timestamp() string {
+   return time.Now().Format("2006-01-02T15:05")
+}
 
 func note_fname() string {
-   return fmt.Sprintf("%s.md", time.Now().Format("2006-01-02T15:05"))
+   return fmt.Sprintf("%s.md", timestamp())//.Now().Format("2006-01-02T15:05"))
 }
 
 func take_note(person string) error {
@@ -64,29 +69,81 @@ func list_notes(person string) error {
    return nil
 }
 
-func usage(){
+func rate(person string, rating string, score int, comment string) error {
+   path_to_ppl_folder,err := path_to_folder("")
+   if err != nil {
+      return err
+   }
+   filename := fmt.Sprintf("%s/ratings.csv",path_to_ppl_folder)
+   f,err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+   defer f.Close()
+   if _,err := f.WriteString(fmt.Sprintf("%s,%s,%s,%v,%s\n", timestamp(), person, rating, score, comment)) ; err != nil {
+      return err
+   }
+   return nil
+}
+
+func usage(err error){
+   if err != nil {
+      fmt.Printf("Error: %s", err)
+   }
    fmt.Printf("Usage: ppl [write | list] [person name]\n")
    os.Exit(1)
 }
 
-func main(){
-   if narg := len(os.Args); narg != 3 {
-      usage()
+func require_narg(number_or_arguments_required int, args []string) error {
+   if narg := len(args)-2; narg != number_or_arguments_required {
+      return fmt.Errorf("Requires %v arguments, got %v: %s\n", number_or_arguments_required, narg, args)
    }
+   return nil
+}
+
+func main(){
+   //if narg := len(os.Args); narg != 3 {
+   //   usage(nil)
+   //}
    command_name := os.Args[1]
 
    switch command_name {
       case "write":
-         err := take_note(os.Args[2])
+         err := require_narg(1, os.Args)
+         if err != nil {
+            usage(err)
+            return
+         }
+         err = take_note(os.Args[2])
          if err != nil {
             panic(err)
          }
       case "list":
-         err := list_notes(os.Args[2])
+         err := require_narg(1, os.Args)
+         if err != nil {
+            usage(err)
+            return
+         }
+         err = list_notes(os.Args[2])
+         if err != nil {
+            panic(err)
+         }
+      case "rate":
+         //comment := flag.String("m", "", "Comment for this rating")
+         //flag.Parse()
+         args := os.Args
+         err := require_narg(3, args)
+         if err != nil {
+            usage(err)
+            return
+         }
+         score,err := strconv.Atoi(args[4])
+         if err != nil {
+            usage(fmt.Errorf("Failed to parse score as integer: %s\n", args[4]))
+            return
+         }
+         err = rate(args[2], args[3], score, "")
          if err != nil {
             panic(err)
          }
       default:
-         usage()
+         usage(nil)
    }
 }
